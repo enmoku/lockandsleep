@@ -1,8 +1,10 @@
 ﻿A basic utility to lock a Windows workstation and put its monitors to sleep.
 
+Requires .NET 4.6.1 or later.
+
 Tested only on Windows 7.
 
-### How to use
+# How to use
 
 1. Save the executable in some convenient location.
 2. Create a desktop shortcut or similar.
@@ -11,7 +13,7 @@ Tested only on Windows 7.
 
 Either activate the shortcut or use the keyboard command you added to it.
 
-### Rationale
+# Rationale
 
 All the ones by others I could find either did only one of these or added some unnecessary bloat everywhere.
 
