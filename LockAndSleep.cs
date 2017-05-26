@@ -101,8 +101,9 @@ namespace LockAndSleepWorkstation
 			uint Message = 0x0112; // 0x0112 = WM_SYSCOMMAND
 			int Parameter1 = 0xF170; // 0xF170 = SC_MONITORPOWER
 			int Parameter2 = 2; // -1 = Powering On, 1 = Low Power (low backlight, etc.), 2 = Power Off
+			IntPtr Handle = new IntPtr(-1); // -1 = 0xFFFF = HWND_BROADCAST
 			if (!quiet) Console.WriteLine("Sleeping...");
-			SendMessage(new IntPtr(-1), Message, Parameter1, Parameter2);
+			SendMessage(Handle, Message, Parameter1, Parameter2);
 
 			if (!quiet)
 			{
