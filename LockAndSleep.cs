@@ -28,7 +28,6 @@ using System;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using System.Windows.Forms;
-using System.IO;
 
 namespace LockAndSleepWorkstation
 {
@@ -90,16 +89,7 @@ namespace LockAndSleepWorkstation
 
 		protected override void WndProc(ref Message m)
 		{
-			if (m.Msg == WM_SYSCOMMAND)
-			{
-				if (m.WParam.ToInt32() == SC_MONITORPOWER)
-				{
-					Console.WriteLine("Monitor power state: {0}", ((PowerMode)m.LParam.ToInt32()).ToString());
-
-					MonitorPower?.Invoke(this, new MonitorPowerEventArgs(m.LParam.ToInt32() == 0 ? PowerMode.Off : PowerMode.On));
-				}
-			}
-			else if (m.Msg == WM_POWERBROADCAST)
+			if (m.Msg == WM_POWERBROADCAST)
 			{
 				if (m.WParam.ToInt32() == PBT_POWERSETTINGCHANGE)
 				{
@@ -168,16 +158,17 @@ namespace LockAndSleepWorkstation
 			return Math.Max(Math.Min(value, max), min);
 		}
 
-		public static int delay = 2500; // 2.5 seconds
-		public static bool quiet = false;
-		public static bool retry = false;
-		public static int retrywait = 60000 * 5; // 5 minutes
-		public const int retrywaitmax = 60000 * 30; // 30 minutes
-		public const int retrywaitmin = 60000 * 1; // 1 minute
+		public static int Delay = 2500; // 2.5 seconds
+		public static bool Quiet = false;
+		public static bool Retry = false;
+		public static bool WaitForUnlock = false;
+		public static int RetryWait = 60000 * 5; // 5 minutes
+		public const int RetryWaitMax = 60000 * 30; // 30 minutes
+		public const int RetryWaitMin = 60000 * 1; // 1 minute
 
-		public static int powermode = 2; // 2 = off, 1 = standby, -1 = on
+		public static int PowerModeIntent = 2; // 2 = off, 1 = standby, -1 = on
 
-		public static bool locked = false;
+		public static bool WorkstationLockState = false;
 
 		public static PowerManager pman;
 
@@ -185,6 +176,11 @@ namespace LockAndSleepWorkstation
 		static PowerMode CurrentPowerState = PowerMode.Invalid;
 
 		static Timer RetrySleepMode;
+
+		public static void WriteLine(string message)
+		{
+	        Console.WriteLine("[{0}] {1}", DateTime.Now.TimeOfDay, message);
+		}
 
 		public static void Main()
 		{
@@ -196,20 +192,24 @@ namespace LockAndSleepWorkstation
 					case "-w":
 					case "--wait":
 						if (i + 1 < args.Length)
-							delay = Convert.ToInt32(args[++i]);
+							Delay = Convert.ToInt32(args[++i]);
 						break;
 					case "-q":
 					case "--quiet":
-						quiet = true;
+						Quiet = true;
 						break;
 					case "-r":
 					case "--retry":
-						retry = true;
+						Retry = true;
 						if (i + 1 < args.Length)
 						{
 							if (!args[i + 1].StartsWith("-", StringComparison.InvariantCulture))
-								retrywait = MinMax(Convert.ToInt32(args[++i]), retrywaitmin, retrywaitmax);
+								RetryWait = MinMax(Convert.ToInt32(args[++i]), RetryWaitMin, RetryWaitMax);
 						}
+						break;
+					case "--unlock":
+					case "-u":
+						WaitForUnlock = true;
 						break;
 					/*
 					// Redundant cases
@@ -221,8 +221,10 @@ namespace LockAndSleepWorkstation
 						Console.WriteLine("--wait ms     Wait # ms before locking and sleeping.");
 						Console.WriteLine("-w ms");
 						// Not Implemented
-						Console.WriteLine("--retry [ms]   Retry sleep with # ms delay [default: 5 minutes]");
+						Console.WriteLine("--retry [ms]  Retry sleep with # ms delay [default: 5 minutes]");
 						Console.WriteLine("-r [ms]");
+						Console.WriteLine("--unlock      Wait indefinitely for workstation unlock.");
+						Console.WriteLine("-u");
 						// Standby puts on lower power mode, like dimming brightness
 						//Console.WriteLine("--standby     Set monitor to standby instead of off.");
 						//Console.WriteLine("-s");
@@ -237,35 +239,39 @@ namespace LockAndSleepWorkstation
 			//retrywait = 5000;
 			//powermode = 1;
 
-			if (!quiet)
+			if (!Quiet)
 			{
 				PrintHeader();
 
-				Console.WriteLine("Delay: {0}ms", delay);
-
-				if (retry) Console.WriteLine("Retry: {0}ms", retrywait);
+				// Output active settings.
+				Console.WriteLine(string.Format("Delay: {0}ms", Delay));
+				if (Retry) Console.WriteLine(string.Format("Retry: {0}ms", RetryWait));
+				if (WaitForUnlock) Console.WriteLine("Wait for unlock: Enabled");
 			}
 
-			if (retry)
+			if (Retry)
 			{
 				pman = new PowerManager();
 				// TODO: Move as much as possible of the following to PowerManagementHwnd
 				RetrySleepMode = new Timer();
-				RetrySleepMode.Interval = retrywait;
+				RetrySleepMode.Interval = RetryWait;
 				int retrycount = 0;
 				int reinforcecount = 0;
 				RetrySleepMode.Tick += (sender, e) =>
 				{
 					// Stop trying after a while
-					if (retrycount > 5 && (retrycount/2) > reinforcecount)
+					if (!WaitForUnlock)
 					{
-						RetrySleepMode.Stop();
-						// There's no point keeping this app running.
-						Application.ExitThread();
-						return;
+						if (retrycount > 5 && (retrycount / 2) > reinforcecount)
+						{
+							RetrySleepMode.Stop();
+							// There's no point keeping this app running.
+							Application.ExitThread();
+							return;
+						}
 					}
 
-					if (CurrentPowerState == ((PowerMode)powermode))
+					if (CurrentPowerState == ((PowerMode)PowerModeIntent))
 					{
 						RetrySleepMode.Stop();
 						return;
@@ -282,9 +288,9 @@ namespace LockAndSleepWorkstation
 						float eticks = Convert.ToSingle(Environment.TickCount);
 						float uticks = Convert.ToSingle(info.dwTime);
 						float idletime = (eticks - uticks) / 1000;
-						if (idletime < Convert.ToInt32(retrywait / 1000))
+						if (idletime < Convert.ToInt32(RetryWait / 1000))
 						{
-							if (!quiet) Console.WriteLine("User active too recently ({0}s). Skipping sleep reinforcement.", idletime);
+							if (!Quiet) WriteLine(string.Format("User active too recently ({0:N1}s ago).", idletime));
 							return;
 						}
 
@@ -296,48 +302,50 @@ namespace LockAndSleepWorkstation
 						return;
 					}
 
-					if (!quiet) Console.WriteLine("Powering down again.");
-					PowerManager.SleepDisplays((PowerMode)powermode);
+					if (!Quiet) WriteLine("Powering down again.");
+					PowerManager.SleepDisplays((PowerMode)PowerModeIntent);
 					reinforcecount += 1;
 				};
 
 				pman.MonitorPower += (sender, e) =>
 				{
 					CurrentPowerState = e.Mode;
+					if (!Quiet) WriteLine(string.Format("Monitor power state: {0}", CurrentPowerState));
 					if (CurrentPowerState == PowerMode.On)
 						RetrySleepMode.Start();
 				};
 				pman.SessionLock += (sender, e) =>
 				{
 					CurrentLockState = e.Locked;
+					if (!Quiet) WriteLine(string.Format("Session locked: {0}", CurrentLockState));
 					if (CurrentLockState == false)
 						RetrySleepMode.Stop();
 				};
 			}
 
-			if (delay > 0) System.Threading.Thread.Sleep(delay);
+			if (Delay > 0) System.Threading.Thread.Sleep(Delay);
 
-			if (!quiet)
+			if (!Quiet)
 			{
 				Console.WriteLine();
-				Console.WriteLine("Locking...");
+				WriteLine("Locking...");
 			}
 			LockWorkStation();
 
-			if (!quiet) Console.WriteLine("Powering down...");
-			PowerManager.SleepDisplays((PowerMode)powermode);
+			if (!Quiet) WriteLine("Powering down...");
+			PowerManager.SleepDisplays((PowerMode)PowerModeIntent);
 
-			if (retry)
+			if (Retry)
 			{
-				if (!quiet) Console.WriteLine("Waiting for unlock...");
+				if (!Quiet) WriteLine("Waiting for unlock...");
 				Application.Run();
-				if (!quiet) Console.WriteLine("Unlocked, exiting.");
+				if (!Quiet) WriteLine("Unlocked, exiting.");
 			}
 
-			if (!quiet)
+			if (!Quiet)
 			{
 				Console.WriteLine();
-				Console.WriteLine("Done.");
+				WriteLine("Done.");
 			}
 		}
 
