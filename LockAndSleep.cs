@@ -57,6 +57,7 @@ namespace LockAndSleepWorkstation
 		public const int WM_POWERBROADCAST = 0x218;
 		public const int SC_MONITORPOWER = 0xF170;
 		public const int PBT_POWERSETTINGCHANGE = 0x8013;
+		public const int HWND_BROADCAST = 0xFFFF;
 
 		public event EventHandler<SessionLockEventArgs> SessionLock;
 		public event EventHandler<MonitorPowerEventArgs> MonitorPower;
@@ -121,8 +122,12 @@ namespace LockAndSleepWorkstation
 		public static void SleepDisplays(PowerMode powermode)
 		{
 			int NewPowerMode = (int)powermode; // -1 = Powering On, 1 = Low Power (low backlight, etc.), 2 = Power Off
-			IntPtr Handle = new IntPtr(-1); // -1 = 0xFFFF = HWND_BROADCAST
-			SendMessage(Handle, PowerManager.WM_SYSCOMMAND, PowerManager.SC_MONITORPOWER, NewPowerMode);		}
+			IntPtr Handle = new IntPtr(HWND_BROADCAST);
+			IntPtr result = new IntPtr(-1); // unused, but necessary
+			uint timeout = 200; // ms per window, we don't really care if they process them
+			SendMessageTimeoutFlags flags = SendMessageTimeoutFlags.SMTO_ABORTIFHUNG;
+			SendMessageTimeout(Handle, WM_SYSCOMMAND, SC_MONITORPOWER, NewPowerMode, flags, timeout, out result);
+		}
 
 		//static Guid GUID_MONITOR_POWER_ON = new Guid(0x02731015, 0x4510, 0x4526, 0x99, 0xE6, 0xE5, 0xA1, 0x7E, 0xBD, 0x1A, 0xEA);
 		// GUID_CONSOLE_DISPLAY_STATE is supposedly Win8 and newer, but works on Win7 too for some reason.
@@ -140,8 +145,25 @@ namespace LockAndSleepWorkstation
 			public byte Data;
 		}
 
-		[DllImport("user32.dll")]
-		static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, int wParam, int lParam);
+		[Flags]
+		public enum SendMessageTimeoutFlags : uint
+		{
+			SMTO_NORMAL = 0x0,
+			SMTO_BLOCK = 0x1,
+			SMTO_ABORTIFHUNG = 0x2,
+			SMTO_NOTIMEOUTIFNOTHUNG = 0x8,
+			SMTO_ERRORONEXIT = 0x20
+		}
+
+		[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+		public static extern IntPtr SendMessageTimeout(
+			IntPtr hWnd,
+			uint Msg,
+			int wParam,
+			int lParam,
+			SendMessageTimeoutFlags flags,
+			uint timeout,
+			out IntPtr result);
 	}
 
 	public class LockAndSleep
@@ -161,12 +183,13 @@ namespace LockAndSleepWorkstation
 		public static int Delay = 2500; // 2.5 seconds
 		public static bool Quiet = false;
 		public static bool Retry = false;
+		public static bool Pause = false;
 		public static bool WaitForUnlock = false;
 		public static int RetryWait = 60000 * 5; // 5 minutes
 		public const int RetryWaitMax = 60000 * 30; // 30 minutes
 		public const int RetryWaitMin = 60000 * 1; // 1 minute
 
-		public static int PowerModeIntent = 2; // 2 = off, 1 = standby, -1 = on
+		public static PowerMode PowerModeIntent = PowerMode.Off;
 
 		public static bool WorkstationLockState = false;
 
@@ -207,6 +230,10 @@ namespace LockAndSleepWorkstation
 								RetryWait = MinMax(Convert.ToInt32(args[++i]), RetryWaitMin, RetryWaitMax);
 						}
 						break;
+					case "--pause":
+					case "-p":
+						Pause = true;
+						break;
 					case "--unlock":
 					case "-u":
 						WaitForUnlock = true;
@@ -225,6 +252,8 @@ namespace LockAndSleepWorkstation
 						Console.WriteLine("-r [ms]");
 						Console.WriteLine("--unlock      Wait indefinitely for workstation unlock.");
 						Console.WriteLine("-u");
+						Console.WriteLine("--pause       Pause at end of execution");
+						Console.WriteLine("-p");
 						// Standby puts on lower power mode, like dimming brightness
 						//Console.WriteLine("--standby     Set monitor to standby instead of off.");
 						//Console.WriteLine("-s");
@@ -238,6 +267,7 @@ namespace LockAndSleepWorkstation
 			//retry = true;
 			//retrywait = 5000;
 			//powermode = 1;
+			PowerModeIntent = PowerMode.Standby;
 
 			if (!Quiet)
 			{
@@ -246,7 +276,7 @@ namespace LockAndSleepWorkstation
 				// Output active settings.
 				Console.WriteLine(string.Format("Delay: {0}ms", Delay));
 				if (Retry) Console.WriteLine(string.Format("Retry: {0}ms", RetryWait));
-				if (WaitForUnlock) Console.WriteLine("Wait for unlock: Enabled");
+				Console.WriteLine("Wait for unlock: " + (WaitForUnlock?"Enabled":"Disabled"));
 			}
 
 			if (Retry)
@@ -271,7 +301,7 @@ namespace LockAndSleepWorkstation
 						}
 					}
 
-					if (CurrentPowerState == ((PowerMode)PowerModeIntent))
+					if (CurrentPowerState == PowerModeIntent)
 					{
 						RetrySleepMode.Stop();
 						return;
@@ -303,16 +333,22 @@ namespace LockAndSleepWorkstation
 					}
 
 					if (!Quiet) WriteLine("Powering down again.");
-					PowerManager.SleepDisplays((PowerMode)PowerModeIntent);
+					PowerManager.SleepDisplays(PowerModeIntent);
 					reinforcecount += 1;
 				};
 
 				pman.MonitorPower += (sender, e) =>
 				{
+					PowerMode OldPowerState = CurrentPowerState;
 					CurrentPowerState = e.Mode;
 					if (!Quiet) WriteLine(string.Format("Monitor power state: {0}", CurrentPowerState));
 					if (CurrentPowerState == PowerMode.On)
 						RetrySleepMode.Start();
+					
+					if (!Retry && OldPowerState != PowerMode.On && CurrentPowerState == PowerMode.On)
+					{
+						Application.ExitThread();
+					}
 				};
 				pman.SessionLock += (sender, e) =>
 				{
@@ -333,7 +369,8 @@ namespace LockAndSleepWorkstation
 			LockWorkStation();
 
 			if (!Quiet) WriteLine("Powering down...");
-			PowerManager.SleepDisplays((PowerMode)PowerModeIntent);
+			PowerManager.SleepDisplays(PowerModeIntent);
+			Console.WriteLine("Erm?");
 
 			if (Retry)
 			{
@@ -346,6 +383,12 @@ namespace LockAndSleepWorkstation
 			{
 				Console.WriteLine();
 				WriteLine("Done.");
+			}
+
+			if (Pause && !Quiet)
+			{
+				WriteLine("Press any key to end.");
+				Console.ReadKey();
 			}
 		}
 
