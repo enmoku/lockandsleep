@@ -266,8 +266,7 @@ namespace LockAndSleepWorkstation
 			// DEBUG
 			//retry = true;
 			//retrywait = 5000;
-			//powermode = 1;
-			PowerModeIntent = PowerMode.Standby;
+			//PowerModeIntent = PowerMode.Standby; // For debugging
 
 			if (!Quiet)
 			{
@@ -370,7 +369,6 @@ namespace LockAndSleepWorkstation
 
 			if (!Quiet) WriteLine("Powering down...");
 			PowerManager.SleepDisplays(PowerModeIntent);
-			Console.WriteLine("Erm?");
 
 			if (Retry)
 			{
