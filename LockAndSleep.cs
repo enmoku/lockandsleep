@@ -83,6 +83,9 @@ namespace LockAndSleepWorkstation
 					goto default;
 				default:
 					// Anything else, we bail out to avoid interfering with anything.
+					Console.WriteLine("Unrecognized session state, bailing out to avoid interference.");
+					Console.WriteLine("Event: " + e.Reason.ToString());
+					// this can include sessions logon/logofff and many others
 					Application.ExitThread();
 					break;
 			}
@@ -119,7 +122,7 @@ namespace LockAndSleepWorkstation
 			base.WndProc(ref m); // is this necessary?
 		}
 
-		public static void SleepDisplays(PowerMode powermode)
+		public static void SetMode(PowerMode powermode)
 		{
 			int NewPowerMode = (int)powermode; // -1 = Powering On, 1 = Low Power (low backlight, etc.), 2 = Power Off
 			IntPtr Handle = new IntPtr(HWND_BROADCAST);
@@ -202,8 +205,10 @@ namespace LockAndSleepWorkstation
 
 		public static void WriteLine(string message)
 		{
-	        Console.WriteLine("[{0}] {1}", DateTime.Now.TimeOfDay, message);
+			Console.WriteLine("[{0}] {1}", DateTime.Now.TimeOfDay, message);
 		}
+
+		static bool Awaken = false;
 
 		public static void Main()
 		{
@@ -212,6 +217,10 @@ namespace LockAndSleepWorkstation
 			{
 				switch (args[i])
 				{
+					case "--awaken":
+					case "-a":
+						Awaken = true;
+						break;
 					case "-w":
 					case "--wait":
 						if (i + 1 < args.Length)
@@ -263,6 +272,14 @@ namespace LockAndSleepWorkstation
 				}
 			}
 
+			if (Awaken)
+			{
+				WriteLine("Waking monitors");
+				PowerManager.SetMode(PowerMode.On);
+				System.Threading.Thread.Sleep(500); // BUG: for lols
+				return;
+			}
+
 			// DEBUG
 			//retry = true;
 			//retrywait = 5000;
@@ -275,7 +292,7 @@ namespace LockAndSleepWorkstation
 				// Output active settings.
 				Console.WriteLine(string.Format("Delay: {0}ms", Delay));
 				if (Retry) Console.WriteLine(string.Format("Retry: {0}ms", RetryWait));
-				Console.WriteLine("Wait for unlock: " + (WaitForUnlock?"Enabled":"Disabled"));
+				Console.WriteLine("Wait for unlock: " + (WaitForUnlock ? "Enabled" : "Disabled"));
 			}
 
 			if (Retry)
@@ -332,7 +349,7 @@ namespace LockAndSleepWorkstation
 					}
 
 					if (!Quiet) WriteLine("Powering down again.");
-					PowerManager.SleepDisplays(PowerModeIntent);
+					PowerManager.SetMode(PowerModeIntent);
 					reinforcecount += 1;
 				};
 
@@ -343,7 +360,7 @@ namespace LockAndSleepWorkstation
 					if (!Quiet) WriteLine(string.Format("Monitor power state: {0}", CurrentPowerState));
 					if (CurrentPowerState == PowerMode.On)
 						RetrySleepMode.Start();
-					
+
 					if (!Retry && OldPowerState != PowerMode.On && CurrentPowerState == PowerMode.On)
 					{
 						Application.ExitThread();
@@ -368,7 +385,7 @@ namespace LockAndSleepWorkstation
 			LockWorkStation();
 
 			if (!Quiet) WriteLine("Powering down...");
-			PowerManager.SleepDisplays(PowerModeIntent);
+			PowerManager.SetMode(PowerModeIntent);
 
 			if (Retry)
 			{
@@ -406,6 +423,6 @@ namespace LockAndSleepWorkstation
 			[MarshalAs(UnmanagedType.U4)]
 			public UInt32 dwTime;
 		}
-	
+
 	}
 }
