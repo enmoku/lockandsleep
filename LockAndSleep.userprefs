@@ -1,0 +1,15 @@
+﻿<Properties StartupConfiguration="{8B28152B-02B3-4F41-84EB-A4EA2DF7B584}|Default">
+  <MonoDevelop.Ide.ItemProperties.LockAndSleep PreferredExecutionTarget="MonoDevelop.Default" />
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Release|x86" />
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.Workbench ActiveDocument=".gitattributes">
+    <Files>
+      <File FileName="LockAndSleep.cs" Line="416" Column="40" />
+      <File FileName=".gitattributes" Line="1" Column="1" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MultiItemStartupConfigurations />
+</Properties>

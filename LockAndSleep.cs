@@ -2,9 +2,9 @@
 // LockAndSleep.cs
 //
 // Author:
-//       M.A. (enmoku) <>
+//       M.A. (https://github.com/mkahvi)
 //
-// Copyright (c) 2017 M.A. (enmoku)
+// Copyright (c) 2017–2019 M.A.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -93,28 +93,25 @@ namespace LockAndSleepWorkstation
 
 		protected override void WndProc(ref Message m)
 		{
-			if (m.Msg == WM_POWERBROADCAST)
+			if (m.Msg == WM_POWERBROADCAST && m.WParam.ToInt32() == PBT_POWERSETTINGCHANGE)
 			{
-				if (m.WParam.ToInt32() == PBT_POWERSETTINGCHANGE)
+				var ps = (POWERBROADCAST_SETTING)Marshal.PtrToStructure(m.LParam, typeof(POWERBROADCAST_SETTING));
+				if (ps.PowerSetting == GUID_CONSOLE_DISPLAY_STATE)
 				{
-					POWERBROADCAST_SETTING ps = (POWERBROADCAST_SETTING)Marshal.PtrToStructure(m.LParam, typeof(POWERBROADCAST_SETTING));
-					if (ps.PowerSetting == GUID_CONSOLE_DISPLAY_STATE)
+					switch (ps.Data)
 					{
-						switch (ps.Data)
-						{
-							case 0x0:
-								MonitorPower?.Invoke(this, new MonitorPowerEventArgs(PowerMode.Off));
-								break;
-							case 0x1:
-								MonitorPower?.Invoke(this, new MonitorPowerEventArgs(PowerMode.On));
-								break;
-								/*
-							case 0x2:
-								pm = PowerMode.Standby;
-								MonitorPower?.Invoke(this, new MonitorPowerEventArgs(PowerMode.Standby));
-								break;
-								*/
-						}
+						case 0x0:
+							MonitorPower?.Invoke(this, new MonitorPowerEventArgs(PowerMode.Off));
+							break;
+						case 0x1:
+							MonitorPower?.Invoke(this, new MonitorPowerEventArgs(PowerMode.On));
+							break;
+							/*
+						case 0x2:
+							pm = PowerMode.Standby;
+							MonitorPower?.Invoke(this, new MonitorPowerEventArgs(PowerMode.Standby));
+							break;
+							*/
 					}
 				}
 			}
@@ -125,8 +122,8 @@ namespace LockAndSleepWorkstation
 		public static void SetMode(PowerMode powermode)
 		{
 			int NewPowerMode = (int)powermode; // -1 = Powering On, 1 = Low Power (low backlight, etc.), 2 = Power Off
-			IntPtr Handle = new IntPtr(HWND_BROADCAST);
-			IntPtr result = new IntPtr(-1); // unused, but necessary
+			var Handle = new IntPtr(HWND_BROADCAST);
+			var result = new IntPtr(-1); // unused, but necessary
 			uint timeout = 200; // ms per window, we don't really care if they process them
 			SendMessageTimeoutFlags flags = SendMessageTimeoutFlags.SMTO_ABORTIFHUNG;
 			SendMessageTimeout(Handle, WM_SYSCOMMAND, SC_MONITORPOWER, NewPowerMode, flags, timeout, out result);
@@ -174,14 +171,11 @@ namespace LockAndSleepWorkstation
 		public static void PrintHeader()
 		{
 			Console.WriteLine("Lock & Sleep - To lock workstation and put monitors to sleep.");
-			Console.WriteLine("https://github.com/enmoku/lockandsleep");
+			Console.WriteLine("https://github.com/mkahvi/lockandsleep");
 			Console.WriteLine();
 		}
 
-		public static int MinMax(int value, int min, int max)
-		{
-			return Math.Max(Math.Min(value, max), min);
-		}
+		public static int MinMax(int value, int min, int max) => Math.Max(Math.Min(value, max), min);
 
 		public static int Delay = 2500; // 2.5 seconds
 		public static bool Quiet = false;
@@ -203,12 +197,9 @@ namespace LockAndSleepWorkstation
 
 		static Timer RetrySleepMode;
 
-		public static void WriteLine(string message)
-		{
-			Console.WriteLine("[{0}] {1}", DateTime.Now.TimeOfDay, message);
-		}
+		public static void WriteLine(string message) => Console.WriteLine("[{0}] {1}", DateTime.Now.TimeOfDay, message);
 
-		static bool Awaken = false;
+		static bool Awaken { get; set; } = false;
 
 		public static void Main()
 		{
@@ -325,7 +316,7 @@ namespace LockAndSleepWorkstation
 
 					retrycount += 1;
 
-					LASTINPUTINFO info = new LASTINPUTINFO();
+					var info = new LASTINPUTINFO();
 					info.cbSize = (uint)Marshal.SizeOf(info);
 					info.dwTime = 0;
 					bool n = GetLastInputInfo(ref info);
@@ -423,6 +414,5 @@ namespace LockAndSleepWorkstation
 			[MarshalAs(UnmanagedType.U4)]
 			public UInt32 dwTime;
 		}
-
 	}
 }

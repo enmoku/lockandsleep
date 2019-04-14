@@ -2,9 +2,9 @@
 // AssemblyInfo.cs
 //
 // Author:
-//       M.A. (enmoku) <>
+//       M.A. (https://github.com/mkahvi)
 //
-// Copyright (c) 2017 M.A. (enmoku)
+// Copyright (c) 2017 M.A.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,10 +23,10 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-using System.Reflection;
-using System.Runtime.CompilerServices;
 
-// Information about this assembly is defined by the following attributes. 
+using System.Reflection;
+
+// Information about this assembly is defined by the following attributes.
 // Change them to the values specific to your project.
 
 [assembly: AssemblyTitle("Lock&Sleep")]
@@ -34,7 +34,7 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("")]
-[assembly: AssemblyCopyright("M.A. (enmoku), 2017")]
+[assembly: AssemblyCopyright("M.A., 2017–2019")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -44,7 +44,7 @@ using System.Runtime.CompilerServices;
 
 [assembly: AssemblyVersion("1.3.*")]
 
-// The following attributes are used to specify the signing key for the assembly, 
+// The following attributes are used to specify the signing key for the assembly,
 // if desired. See the Mono documentation for more information about signing.
 
 //[assembly: AssemblyDelaySign(false)]
